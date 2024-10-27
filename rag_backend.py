@@ -18,7 +18,6 @@ from pyngrok import ngrok
 import logging
 import os
 import sys
-import platform
 from typing import List, Dict
 from pathlib import Path
 import questionary
@@ -31,13 +30,15 @@ console = Console()
 logging.basicConfig(
     level=logging.INFO,
     format="%(message)s",
-    handlers=[logging.StreamHandler(sys.stdout)]
+    handlers=[logging.StreamHandler(sys.stdout)],
 )
 logger = logging.getLogger(__name__)
+
 
 def get_default_documents_path() -> str:
     """Get the default documents directory for the current operating system."""
     return os.path.join(os.path.expanduser("~"), "Documents")
+
 
 def normalize_path(path: str) -> Path:
     """Normalize a path string to a proper Path object."""
@@ -46,13 +47,14 @@ def normalize_path(path: str) -> Path:
     abs_path = os.path.abspath(expanded_path)
     return Path(abs_path)
 
+
 class DocumentProcessor:
     SUPPORTED_EXTENSIONS = {
-        '.txt': TextLoader,
-        '.pdf': PyPDFLoader,
-        '.csv': CSVLoader,
-        '.json': JSONLoader,
-        '.md': UnstructuredMarkdownLoader,
+        ".txt": TextLoader,
+        ".pdf": PyPDFLoader,
+        ".csv": CSVLoader,
+        ".json": JSONLoader,
+        ".md": UnstructuredMarkdownLoader,
     }
 
     def __init__(self, docs_dir: str = "Documents", persist_directory: str = None):
@@ -61,21 +63,23 @@ class DocumentProcessor:
         self.text_splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
         self.vectorstore = None
         # Set default persist_directory if none provided
-        self.persist_directory = persist_directory or os.path.join(os.getcwd(), "chroma_db")
+        self.persist_directory = persist_directory or os.path.join(
+            os.getcwd(), "chroma_db"
+        )
 
     def get_loader_for_file(self, file_path: Path):
         """Get appropriate loader for file type with enhanced PDF handling."""
         extension = file_path.suffix.lower()
         if extension not in self.SUPPORTED_EXTENSIONS:
             raise ValueError(f"Unsupported file type: {extension}")
-        
+
         loader_class = self.SUPPORTED_EXTENSIONS[extension]
-        
-        if extension == '.pdf':
+
+        if extension == ".pdf":
             return PyPDFLoader(str(file_path))
-        elif extension == '.json':
-            return loader_class(str(file_path), jq_schema='.', text_content=False)
-        
+        elif extension == ".json":
+            return loader_class(str(file_path), jq_schema=".", text_content=False)
+
         return loader_class(str(file_path))
 
     def process_documents(self) -> Dict[str, List[str]]:
@@ -83,16 +87,21 @@ class DocumentProcessor:
         all_docs = []
         processed_files = []
         failed_files = []
-        
+
         # Create persist directory if it doesn't exist
         os.makedirs(self.persist_directory, exist_ok=True)
 
         # Get list of files to process
-        files_to_process = [f for f in self.docs_dir.glob('*') 
-                          if f.suffix.lower() in self.SUPPORTED_EXTENSIONS]
-        
+        files_to_process = [
+            f
+            for f in self.docs_dir.glob("*")
+            if f.suffix.lower() in self.SUPPORTED_EXTENSIONS
+        ]
+
         if not files_to_process:
-            console.print("No supported documents found in the directory.", style="yellow")
+            console.print(
+                "No supported documents found in the directory.", style="yellow"
+            )
             return {"processed": [], "failed": []}
 
         # Process files with progress display
@@ -104,41 +113,51 @@ class DocumentProcessor:
                     documents = loader.load()
                     if not documents:
                         raise ValueError("No text content extracted from document")
-                    console.print(f"Extracted {len(documents)} pages/sections", style="blue")
-                
+                    console.print(
+                        f"Extracted {len(documents)} pages/sections", style="blue"
+                    )
+
                 with Status("Splitting text...", console=console):
                     split_docs = self.text_splitter.split_documents(documents)
                     if not split_docs:
                         raise ValueError("Document splitting produced no results")
                     all_docs.extend(split_docs)
                     processed_files.append(str(file_path))
-                    console.print(f"Created {len(split_docs)} text chunks", style="blue")
-                
-                console.print(f"✅ Successfully processed {file_path.name}", style="green")
+                    console.print(
+                        f"Created {len(split_docs)} text chunks", style="blue"
+                    )
+
+                console.print(
+                    f"✅ Successfully processed {file_path.name}", style="green"
+                )
 
             except Exception as e:
-                console.print(f"❌ Error processing {file_path.name}: {str(e)}", style="red")
+                console.print(
+                    f"❌ Error processing {file_path.name}: {str(e)}", style="red"
+                )
                 failed_files.append(str(file_path))
                 continue
 
         if not all_docs:
             raise ValueError("No documents were successfully processed")
 
-        # Create vector store with explicit persistence
+        # Create vector store
         with Status("Creating vector store...", console=console):
-            console.print(f"Creating vector store with {len(all_docs)} documents...", style="blue")
-            console.print(f"Vector store location: {self.persist_directory}", style="blue")
-            
+            console.print(
+                f"Creating vector store with {len(all_docs)} documents...", style="blue"
+            )
+            console.print(
+                f"Vector store location: {self.persist_directory}", style="blue"
+            )
+
             self.vectorstore = Chroma.from_documents(
                 documents=all_docs,
                 embedding=self.embeddings,
-                persist_directory=self.persist_directory
+                persist_directory=self.persist_directory,
             )
-            # Explicitly persist the database
-            self.vectorstore.persist()
-            
+
         console.print("✅ Vector store successfully created!", style="green")
-        
+
         return {"processed": processed_files, "failed": failed_files}
 
     def load_existing_vectorstore(self) -> bool:
@@ -147,7 +166,7 @@ class DocumentProcessor:
             if os.path.exists(self.persist_directory):
                 self.vectorstore = Chroma(
                     persist_directory=self.persist_directory,
-                    embedding_function=self.embeddings
+                    embedding_function=self.embeddings,
                 )
                 return True
             return False
@@ -158,24 +177,29 @@ class DocumentProcessor:
     def query_documents(self, question: str, k: int = 2) -> Dict:
         """Query the vector store with a question."""
         if not self.vectorstore:
-            raise ValueError("Vector store not initialized. Please process documents first.")
-        
+            raise ValueError(
+                "Vector store not initialized. Please process documents first."
+            )
+
         relevant_docs = self.vectorstore.similarity_search(question, k=k)
         context = "\n".join([doc.page_content for doc in relevant_docs])
-        
+
         return {
-            "context": context, 
+            "context": context,
             "docs": [doc.metadata for doc in relevant_docs],
-            "num_chunks": k
+            "num_chunks": k,
         }
+
 
 class Query(BaseModel):
     question: str
     k: int = 3  # Default to 3 chunks for better context
 
+
 class ProcessingStatus(BaseModel):
     status: str
     processed_files: List[str]
+
 
 class RAGSystem:
     def __init__(self):
@@ -183,9 +207,10 @@ class RAGSystem:
         self.doc_processor = DocumentProcessor(persist_directory=self.persist_directory)
         self.processed = self.doc_processor.load_existing_vectorstore()
 
+
 def create_app(doc_processor: DocumentProcessor) -> FastAPI:
     app = FastAPI(title="RAG API", version="1.0.0")
-    
+
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
@@ -203,29 +228,33 @@ def create_app(doc_processor: DocumentProcessor) -> FastAPI:
         """
         try:
             if not doc_processor.vectorstore:
-                raise HTTPException(status_code=400, detail="No documents processed yet")
-            
+                raise HTTPException(
+                    status_code=400, detail="No documents processed yet"
+                )
+
             # Validate k
             if query.k < 1:
                 raise HTTPException(status_code=400, detail="k must be at least 1")
             if query.k > 10:
-                raise HTTPException(status_code=400, detail="k cannot be greater than 10")
-            
+                raise HTTPException(
+                    status_code=400, detail="k cannot be greater than 10"
+                )
+
             result = doc_processor.query_documents(query.question, k=query.k)
-            
+
             client = ollama.Client(host="http://localhost:11434")
             prompt = f"""Context: {result['context']}
-            
+
             Question: {query.question}
-            
+
             Answer:"""
-            
+
             response = client.generate(model="llama3.2", prompt=prompt)
-            
+
             return {
-                "answer": response['response'],
-                "sources": result['docs'],
-                "chunks_used": query.k
+                "answer": response["response"],
+                "sources": result["docs"],
+                "chunks_used": query.k,
             }
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
@@ -243,31 +272,32 @@ def create_app(doc_processor: DocumentProcessor) -> FastAPI:
             return {
                 "location": doc_processor.persist_directory,
                 "document_count": collection.count() if collection else 0,
-                "exists": os.path.exists(doc_processor.persist_directory)
+                "exists": os.path.exists(doc_processor.persist_directory),
             }
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
 
     return app
 
+
 def process_documents_cli(rag_system: RAGSystem):
     """CLI interface for processing documents."""
     default_path = get_default_documents_path()
-    
+
     console.print(f"\nCurrent working directory: {os.getcwd()}", style="blue")
     console.print(f"Default documents directory: {default_path}", style="blue")
-    
+
     docs_path = questionary.path(
         "Enter the path to your documents directory:",
         only_directories=True,
-        default=default_path
+        default=default_path,
     ).ask()
-    
+
     if not docs_path:
         return
-    
+
     docs_path = normalize_path(docs_path)
-    
+
     if not docs_path.exists():
         console.print(f"\nDirectory not found: {docs_path}", style="yellow")
         if questionary.confirm("Would you like to create this directory?").ask():
@@ -279,128 +309,218 @@ def process_documents_cli(rag_system: RAGSystem):
                 return
         else:
             return
-        
+
     try:
         rag_system.doc_processor = DocumentProcessor(
-            str(docs_path),
-            persist_directory=rag_system.persist_directory
+            str(docs_path), persist_directory=rag_system.persist_directory
         )
         console.print(f"\nProcessing documents in: {docs_path}", style="blue")
-        console.print(f"Vector store will be saved in: {rag_system.persist_directory}", style="blue")
-        
-        supported_files = [f for f in docs_path.glob('*') 
-                         if f.suffix.lower() in DocumentProcessor.SUPPORTED_EXTENSIONS]
-        
+        console.print(
+            f"Vector store will be saved in: {rag_system.persist_directory}",
+            style="blue",
+        )
+
+        supported_files = [
+            f
+            for f in docs_path.glob("*")
+            if f.suffix.lower() in DocumentProcessor.SUPPORTED_EXTENSIONS
+        ]
+
         if not supported_files:
-            console.print(f"\nNo supported documents found in: {docs_path}", style="yellow")
+            console.print(
+                f"\nNo supported documents found in: {docs_path}", style="yellow"
+            )
             console.print("\nSupported formats:", style="blue")
             for ext in DocumentProcessor.SUPPORTED_EXTENSIONS.keys():
                 console.print(f"  - {ext}")
             return
-            
+
         console.print("\nFound files:", style="green")
         for file in supported_files:
             console.print(f"  - {file.name}")
-            
+
         if questionary.confirm("Proceed with processing these files?").ask():
             result = rag_system.doc_processor.process_documents()
             rag_system.processed = True
-            
+
             console.print("\n📊 Processing Summary:", style="bold blue")
             if result["processed"]:
                 console.print("\n✅ Successfully processed files:", style="green")
                 for file in result["processed"]:
                     console.print(f"  - {Path(file).name}")
-            
+
             if result["failed"]:
                 console.print("\n❌ Failed to process files:", style="red")
                 for file in result["failed"]:
                     console.print(f"  - {Path(file).name}")
         else:
             console.print("\nDocument processing cancelled.", style="yellow")
-                
+
     except Exception as e:
         console.print(f"\n❌ Error: {str(e)}", style="red")
+
 
 def run_server_cli(rag_system: RAGSystem):
     """CLI interface for running the server."""
     if not rag_system.processed:
         console.print("\n⚠️ No documents have been processed yet!", style="yellow")
-        if not questionary.confirm("Do you want to continue without processed documents?").ask():
+        if not questionary.confirm(
+            "Do you want to continue without processed documents?"
+        ).ask():
             return
 
     try:
         app = create_app(rag_system.doc_processor)
-        
+
+        # Try to set up ngrok tunnel
+        ngrok_tunnel = None
         try:
             ngrok_tunnel = ngrok.connect(8000)
             console.print(f"\n🌐 Public URL: {ngrok_tunnel.public_url}", style="green")
         except Exception as e:
             console.print(f"\n⚠️  Error setting up ngrok: {str(e)}", style="yellow")
             console.print("Continuing with local server only...", style="yellow")
-        
+
+        # Run the server
         console.print("\n🚀 Starting server...", style="green")
         uvicorn.run(app, host="0.0.0.0", port=8000)
-        
+
     except Exception as e:
         console.print(f"\n❌ Error: {str(e)}", style="red")
+        if ngrok_tunnel:
+            try:
+                ngrok_tunnel.close()
+            except:
+                pass
+
 
 def show_vectorstore_info(rag_system: RAGSystem):
     """Display information about the vector store."""
-    console.print("\n📊 Vector Store Information:", style="bold blue")
-    console.print(f"Location: {rag_system.persist_directory}", style="blue")
-    
-    if rag_system.processed:
+    try:
+        console.print("\n📊 Vector Store Information:", style="bold blue")
+        console.print(f"Location: {rag_system.persist_directory}", style="blue")
+
+        if rag_system.processed:
+            try:
+                collection = rag_system.doc_processor.vectorstore._collection
+                count = collection.count()
+                console.print(f"Number of documents: {count}", style="green")
+                size = sum(
+                    os.path.getsize(os.path.join(root, file))
+                    for root, _, files in os.walk(rag_system.persist_directory)
+                    for file in files
+                )
+                console.print(f"Total size: {size / 1024 / 1024:.2f} MB", style="green")
+            except Exception as e:
+                console.print(f"Error getting vector store stats: {e}", style="red")
+        else:
+            console.print("No vector store has been created yet.", style="yellow")
+
         try:
-            collection = rag_system.doc_processor.vectorstore._collection
-            count = collection.count()
-            console.print(f"Number of documents: {count}", style="green")
-            size = sum(os.path.getsize(os.path.join(root, file))
-                      for root, _, files in os.walk(rag_system.persist_directory)
-                      for file in files)
-            console.print(f"Total size: {size / 1024 / 1024:.2f} MB", style="green")
+            questionary.press_any_key_to_continue(
+                message="\nPress any key to continue..."
+            ).ask()
+        except EOFError:
+            # Handle the case where standard input is closed
+            console.print("\nReturning to menu...", style="yellow")
+            return
+
+    except Exception as e:
+        console.print(f"\n❌ Error displaying vector store info: {str(e)}", style="red")
+        console.print("\nReturning to menu...", style="yellow")
+
+
+def run_server_cli(rag_system: RAGSystem):
+    """CLI interface for running the server."""
+    if not rag_system.processed:
+        console.print("\n⚠️ No documents have been processed yet!", style="yellow")
+        if not questionary.confirm(
+            "Do you want to continue without processed documents?"
+        ).ask():
+            return
+
+    try:
+        app = create_app(rag_system.doc_processor)
+
+        # Try to set up ngrok tunnel
+        ngrok_tunnel = None
+        try:
+            ngrok_tunnel = ngrok.connect(8000)
+            console.print(f"\n🌐 Public URL: {ngrok_tunnel.public_url}", style="green")
         except Exception as e:
-            console.print(f"Error getting vector store stats: {e}", style="red")
-    else:
-        console.print("No vector store has been created yet.", style="yellow")
-    
-    input("\nPress Enter to continue...")
+            console.print(f"\n⚠️  Error setting up ngrok: {str(e)}", style="yellow")
+            console.print("Continuing with local server only...", style="yellow")
+
+        # Run the server
+        console.print("\n🚀 Starting server...", style="green")
+        try:
+            uvicorn.run(app, host="0.0.0.0", port=8000)
+        except KeyboardInterrupt:
+            console.print("\n⚠️ Server shutdown requested", style="yellow")
+        finally:
+            if ngrok_tunnel:
+                try:
+                    ngrok_tunnel.close()
+                except:
+                    pass
+            # Reset terminal state
+            console.input_enabled = True
+
+    except Exception as e:
+        console.print(f"\n❌ Error: {str(e)}", style="red")
+        if ngrok_tunnel:
+            try:
+                ngrok_tunnel.close()
+            except:
+                pass
+
 
 def main_menu():
     """Main CLI menu."""
-    console.print(Panel.fit(
-        "🤖 RAG System CLI",
-        style="bold blue"
-    ))
-    
+    console.print(Panel.fit("🤖 RAG System CLI", style="bold blue"))
+
     rag_system = RAGSystem()
-    
+
     # Show vector store location at startup
-    console.print(f"\nVector store location: {rag_system.persist_directory}", style="blue")
+    console.print(
+        f"\nVector store location: {rag_system.persist_directory}", style="blue"
+    )
     if rag_system.processed:
         console.print("✅ Loaded existing vector store", style="green")
-    
+
     while True:
-        status = "🟢" if rag_system.processed else "🔴"
-        choice = questionary.select(
-            "What would you like to do?",
-            choices=[
-                f"1. Process Documents (Documents Status: {status})",
-                "2. Run Server",
-                "3. View Vector Store Info",
-                "4. Exit"
-            ]
-        ).ask()
-        
-        if choice.startswith("1."):
-            process_documents_cli(rag_system)
-        elif choice == "2. Run Server":
-            run_server_cli(rag_system)
-        elif choice == "3. View Vector Store Info":
-            show_vectorstore_info(rag_system)
-        elif choice == "4. Exit":
+        try:
+            status = "🟢" if rag_system.processed else "🔴"
+            choice = questionary.select(
+                "What would you like to do?",
+                choices=[
+                    f"1. Process Documents (Documents Status: {status})",
+                    "2. Run Server",
+                    "3. View Vector Store Info",
+                    "4. Exit",
+                ],
+            ).ask()
+
+            if choice is None:  # Handle Ctrl+C in menu
+                raise KeyboardInterrupt
+
+            if choice.startswith("1."):
+                process_documents_cli(rag_system)
+            elif choice == "2. Run Server":
+                run_server_cli(rag_system)
+            elif choice == "3. View Vector Store Info":
+                show_vectorstore_info(rag_system)
+            elif choice == "4. Exit":
+                console.print("\n👋 Goodbye!", style="green")
+                sys.exit(0)
+
+        except EOFError:
+            console.print("\n⚠️ Input error, returning to menu...", style="yellow")
+            continue
+        except KeyboardInterrupt:
             console.print("\n👋 Goodbye!", style="green")
             sys.exit(0)
+
 
 if __name__ == "__main__":
     try:
