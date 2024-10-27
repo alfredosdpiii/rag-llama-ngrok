@@ -7,7 +7,8 @@
 System-level dependencies you'll also need:
 For Ubuntu/Debian:
 
-```bashCopysudo apt-get update && sudo apt-get install -y \
+```bashCopy
+sudo apt-get update && sudo apt-get install -y \
     tesseract-ocr \
     tesseract-ocr-eng \
     poppler-utils \
@@ -18,7 +19,8 @@ For Ubuntu/Debian:
 
 For macOS:
 
-```bashCopybrew install \
+```bashCopy
+brew install \
     tesseract \
     poppler \
     magic \
