@@ -127,6 +127,14 @@ curl -X POST "https://your-ngrok-url/query" \
      -d '{"question": "Your question here", "k": 3}'
 ```
 
+or through localhost
+
+```bash
+curl -X POST "http://localhost:8000/query" \
+     -H "Content-Type: application/json" \
+     -d '{"question": "Your question here", "k": 3}'
+```
+
 - `question`: The query to answer
 - `k`: Number of relevant chunks to retrieve (default: 3)
 
