@@ -40,3 +40,5 @@ curl -X POST "https://your-ngrok-url/query" \
      -H "Content-Type: application/json" \
      -d '{"question": "What is Elixir?", "k": 3}'
 ```
+
+The k parameter in the query represents the number of most relevant document chunks (neighbors) to retrieve from the vector store when answering a question.
