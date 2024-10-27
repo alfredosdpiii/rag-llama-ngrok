@@ -65,7 +65,7 @@ brew install \
 
 ```bash
 git clone <repository-url>
-cd rag-system
+cd rag-llama-ngrok
 ```
 
 2. Create and activate a virtual environment:
@@ -86,6 +86,8 @@ pip install -r requirements.txt
 ```bash
 curl http://localhost:11434/api/tags
 ```
+
+5. `python3 rag_backend.py`
 
 ## Usage
 
