@@ -1,5 +1,6 @@
 fastapi==0.115.3
 langchain==0.3.4
+langchain_chroma==0.1.4
 langchain_community==0.3.3
 langchain_ollama==0.2.0
 ollama==0.3.3
