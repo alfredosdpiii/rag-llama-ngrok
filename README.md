@@ -57,7 +57,7 @@ brew install \
 
 - Python 3.9+
 - [Ollama](https://ollama.ai/) installed and running
-- `llama2` model pulled in Ollama (`ollama pull llama2`)
+- `llama3.2` model pulled in Ollama (`ollama pull llama3.2`)
 
 ## Installation
 
@@ -181,7 +181,7 @@ The vector database is stored in `./chroma_db` by default. You can:
 2. **Ollama Connection**:
 
    - Verify Ollama is running: `curl http://localhost:11434/api/tags`
-   - Check if llama2 model is pulled: `ollama list`
+   - Check if llama3.2 model is pulled: `ollama list`
 
 3. **Vector Store Issues**:
    - Check disk space
